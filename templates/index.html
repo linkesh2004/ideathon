@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner with Instant Capture</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+
+        #video {
+            width: 100%;
+            border: 2px solid #333;
+            border-radius: 5px;
+        }
+
+        #output {
+            text-align: center;
+            max-width: 500px;
+            word-wrap: break-word;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #actionButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #actionButton:hover {
+            background-color: #45a049;
+        }
+
+        * {
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR Code Scanner with Instant Capture</h1>
+    <div id="video-container">
+        <video id="video" autoplay playsinline></video>
+    </div>
+    <button id="actionButton">Start Scanning & Capture</button>
+    <div id="output">
+        <p>Scan result will appear here</p>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const actionButton = document.getElementById('actionButton');
+        const output = document.getElementById('output');
+        let stream = null;
+
+        // Access front camera for scanning
+        async function startAction() {
+            try {
+                // Get front camera
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user' } 
+                });
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    video.play();
+                    captureInstantImage();
+                };
+            } catch (err) {
+                output.textContent = 'Error accessing camera: ' + err.message;
+            }
+        }
+
+        function stopAction() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+        }
+
+        async function captureInstantImage() {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const videoElement = video;
+
+            // Draw the current frame from the video onto the canvas
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas to base64 image
+            const imageData = canvas.toDataURL('image/jpeg');
+            sendImageToFlask(imageData);
+        }
+
+        async function sendImageToFlask(imageData) {
+            try {
+                const response = await fetch('http://127.0.0.1:5000/upload_image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageData
+                    }),
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    output.textContent = 'Image captured and uploaded successfully!';
+                } else {
+                    output.textContent = 'Error uploading image.';
+                }
+            } catch (err) {
+                output.textContent = 'Error sending image to server: ' + err.message;
+            }
+        }
+
+        actionButton.addEventListener('click', () => {
+            if (actionButton.textContent === 'Start Scanning & Capture') {
+                actionButton.textContent = 'Stop Scanning';
+                startAction();
+            } else {
+                actionButton.textContent = 'Start Scanning & Capture';
+                stopAction();
+                output.textContent = 'Scan result will appear here';
+            }
+        });
+    </script>
+
+</body>
+</html>
